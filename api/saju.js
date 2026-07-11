@@ -47,13 +47,37 @@ function extractJson(text) {
   return null;
 }
 
+const GENDER_LABELS = { male: "남성", female: "여성", unknown: "선택 안 함" };
+
+async function saveDraw(record) {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return; // Supabase not configured — skip silently
+
+  const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/saju_draws`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify([record]),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Supabase insert failed: ${response.status} ${detail}`);
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ error: "POST 요청만 지원합니다" });
     return;
   }
 
-  const { birthDate, birthTime, calendar } = req.body || {};
+  const { birthDate, birthTime, calendar, gender } = req.body || {};
 
   if (!birthDate || typeof birthDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     res.status(400).json({ error: "생년월일을 YYYY-MM-DD 형식으로 입력해주세요" });
@@ -63,6 +87,7 @@ module.exports = async (req, res) => {
     res.status(400).json({ error: "태어난 시간 형식이 올바르지 않습니다" });
     return;
   }
+  const genderValue = ["male", "female", "unknown"].includes(gender) ? gender : "unknown";
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -72,10 +97,11 @@ module.exports = async (req, res) => {
 
   const calendarLabel = calendar === "lunar" ? "음력" : "양력";
   const timeLabel = birthTime ? birthTime : "모름";
+  const genderLabel = GENDER_LABELS[genderValue];
 
   const systemPrompt = [
     "너는 재치있고 따뜻한 말투의 사주 명리학 해설가야.",
-    "사용자의 생년월일과 태어난 시간을 바탕으로 사주를 짧고 흥미롭게 해설하고,",
+    "사용자의 생년월일, 태어난 시간, 성별을 바탕으로 사주를 짧고 흥미롭게 해설하고,",
     "그 기운의 오행 균형에 어울리는 로또 6/45 번호를 추천해.",
     "이건 오락 목적의 서비스이니 과도하게 단정적인 말투는 피하고 가볍고 긍정적으로 써줘.",
     "반드시 아래 JSON 형식으로만 답하고 그 외의 설명, 코드블록, 마크다운은 절대 붙이지 마.",
@@ -85,6 +111,7 @@ module.exports = async (req, res) => {
   const userPrompt = [
     `생년월일: ${birthDate} (${calendarLabel})`,
     `태어난 시간: ${timeLabel}`,
+    `성별: ${genderLabel}`,
     "이 정보로 사주를 해설하고, 그 기운에 맞는 로또 번호를 추천해줘.",
   ].join("\n");
 
@@ -129,6 +156,22 @@ module.exports = async (req, res) => {
       const fallback = fallbackNumbers();
       numbers = fallback.numbers;
       bonus = fallback.bonus;
+    }
+
+    try {
+      await saveDraw({
+        birth_date: birthDate,
+        birth_time: birthTime || null,
+        calendar: calendar === "lunar" ? "lunar" : "solar",
+        gender: genderValue,
+        analysis,
+        numbers,
+        bonus,
+      });
+    } catch (saveErr) {
+      // Don't fail the request just because the save failed — the user
+      // still gets their reading and numbers.
+      console.error(saveErr);
     }
 
     res.status(200).json({ analysis, numbers, bonus });

@@ -643,6 +643,16 @@
           시간 모름
         </label>
       </div>
+      <div class="field-row">
+        <label class="field">
+          성별
+          <select id="gender">
+            <option value="unknown">선택 안 함</option>
+            <option value="male">남성</option>
+            <option value="female">여성</option>
+          </select>
+        </label>
+      </div>
       <button type="submit" class="draw-btn" id="sajuBtn" style="align-self: flex-start;">사주 분석하고 번호 추천받기</button>
     </form>
     <p class="saju-status" id="sajuStatus"></p>
@@ -904,6 +914,7 @@
   const birthDateInput = document.getElementById("birthDate");
   const birthTimeInput = document.getElementById("birthTime");
   const timeUnknown = document.getElementById("timeUnknown");
+  const genderSelect = document.getElementById("gender");
 
   timeUnknown.addEventListener("change", () => {
     birthTimeInput.disabled = timeUnknown.checked;
@@ -926,6 +937,7 @@
           birthDate: birthDateInput.value,
           birthTime: timeUnknown.checked ? null : birthTimeInput.value || null,
           calendar: calendarType.value,
+          gender: genderSelect.value,
         }),
       });
 
