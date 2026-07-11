@@ -1,0 +1,632 @@
+<title>로또 6/45 추첨기</title>
+<style>
+  :root {
+    /* light (canvas) — default, mirrors DESIGN.md */
+    --bg: #faf9f5;
+    --surface: #efe9de;
+    --surface-2: #e8e0d2;
+    --stage-bg: #181715;
+    --stage-elevated: #252320;
+    --stage-soft: #1f1e1b;
+    --ink: #141413;
+    --body: #3d3d3a;
+    --body-strong: #252523;
+    --muted: #6c6a64;
+    --muted-soft: #8e8b82;
+    --hairline: #e6dfd8;
+    --hairline-soft: #ebe6df;
+    --primary: #cc785c;
+    --primary-active: #a9583e;
+    --on-primary: #ffffff;
+    --on-dark: #faf9f5;
+    --on-dark-soft: #a09d96;
+
+    --ball-1: #fbc400; --ball-1-ink: #4a3600;
+    --ball-2: #69c8f2; --ball-2-ink: #062533;
+    --ball-3: #ff7272; --ball-3-ink: #400000;
+    --ball-4: #aab0b8; --ball-4-ink: #24272b;
+    --ball-5: #b0d840; --ball-5-ink: #2c3a04;
+
+    --font-display: "Copernicus", "Tiempos Headline", "Cormorant Garamond", "Nanum Myeongjo", "Batang", Georgia, serif;
+    --font-body: "StyreneB", "Inter", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, "Segoe UI", sans-serif;
+    --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #181715;
+    --surface: #1f1e1b;
+    --surface-2: #252320;
+    --stage-bg: #0f0e0c;
+    --stage-elevated: #1f1e1b;
+    --stage-soft: #141312;
+    --ink: #faf9f5;
+    --body: #cbc7bd;
+    --body-strong: #ece8de;
+    --muted: #a09d96;
+    --muted-soft: #85817a;
+    --hairline: #322f28;
+    --hairline-soft: #2a2823;
+    --primary: #e08a67;
+    --primary-active: #cc785c;
+    --on-primary: #181715;
+    --on-dark: #faf9f5;
+    --on-dark-soft: #a09d96;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #181715;
+      --surface: #1f1e1b;
+      --surface-2: #252320;
+      --stage-bg: #0f0e0c;
+      --stage-elevated: #1f1e1b;
+      --stage-soft: #141312;
+      --ink: #faf9f5;
+      --body: #cbc7bd;
+      --body-strong: #ece8de;
+      --muted: #a09d96;
+      --muted-soft: #85817a;
+      --hairline: #322f28;
+      --hairline-soft: #2a2823;
+      --primary: #e08a67;
+      --primary-active: #cc785c;
+      --on-primary: #181715;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: center;
+    padding: 64px 20px 88px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .eyebrow {
+    font: 500 12px/1.4 var(--font-body);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(32px, 6vw, 44px);
+    font-weight: 400;
+    letter-spacing: -0.8px;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  .sub {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  /* ---------- Draw stage — dark product-mockup card ---------- */
+  .stage {
+    background: var(--stage-bg);
+    border-radius: 16px;
+    padding: 36px 26px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .round-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font: 400 13px/1 var(--font-code);
+    color: var(--on-dark-soft);
+    letter-spacing: 0.02em;
+  }
+
+  .round-row strong {
+    color: var(--on-dark);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tray {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 76px;
+  }
+
+  .plus {
+    color: var(--on-dark-soft);
+    font: 400 20px/1 var(--font-code);
+    padding: 0 2px;
+  }
+
+  .ball {
+    --bc: var(--ball-4);
+    --bi: var(--ball-4-ink);
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%),
+      var(--bc);
+    color: var(--bi);
+    font: 600 20px/1 var(--font-code);
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.5), inset 0 -6px 10px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    transform: translateY(-14px) scale(0.6);
+    animation: drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .ball.range-1 { --bc: var(--ball-1); --bi: var(--ball-1-ink); }
+  .ball.range-2 { --bc: var(--ball-2); --bi: var(--ball-2-ink); }
+  .ball.range-3 { --bc: var(--ball-3); --bi: var(--ball-3-ink); }
+  .ball.range-4 { --bc: var(--ball-4); --bi: var(--ball-4-ink); }
+  .ball.range-5 { --bc: var(--ball-5); --bi: var(--ball-5-ink); }
+  .ball.bonus { outline: 2px dashed var(--primary); outline-offset: 3px; }
+  .ball.placeholder {
+    background: var(--stage-elevated);
+    box-shadow: inset 0 0 0 1px var(--hairline-soft);
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  @keyframes drop {
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .draw-btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    background: var(--primary);
+    color: var(--on-primary);
+    font: 500 14px/1 var(--font-body);
+    padding: 12px 28px;
+    height: 40px;
+    border-radius: 8px;
+    letter-spacing: 0;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .draw-btn:hover { background: var(--primary-active); }
+  .draw-btn:active { transform: translateY(1px); }
+  .draw-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+  .draw-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---------- Legend ---------- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--stage-elevated);
+    color: var(--on-dark-soft);
+    font: 500 12px/1.4 var(--font-body);
+    padding: 4px 10px 4px 8px;
+    border-radius: 9999px;
+  }
+  .legend i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .legend i.r1 { background: var(--ball-1); }
+  .legend i.r2 { background: var(--ball-2); }
+  .legend i.r3 { background: var(--ball-3); }
+  .legend i.r4 { background: var(--ball-4); }
+  .legend i.r5 { background: var(--ball-5); }
+
+  /* ---------- Multi-game slip — cream feature card ---------- */
+  section.slip {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 32px 28px;
+  }
+
+  .slip-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+
+  .slip-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: -0.2px;
+  }
+
+  .count-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 500 13px/1 var(--font-body);
+    color: var(--muted);
+  }
+
+  .count-control button {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+    font: 500 15px/1 var(--font-body);
+  }
+  .count-control button:hover { border-color: var(--primary); color: var(--primary); }
+
+  .count-control strong {
+    min-width: 14px;
+    text-align: center;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .games {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-row {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .game-row:first-child { border-top: none; }
+
+  .game-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font: 600 12px/1 var(--font-code);
+  }
+
+  .game-balls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .game-balls .ball {
+    width: 32px;
+    height: 32px;
+    font-size: 12.5px;
+    box-shadow: 0 3px 7px -3px rgba(0, 0, 0, 0.35);
+  }
+
+  .empty-note {
+    color: var(--muted-soft);
+    font-size: 14px;
+    padding: 18px 0;
+    text-align: center;
+  }
+
+  /* ---------- History ---------- */
+  section.history h2 {
+    margin: 0 0 14px;
+    font: 500 12px/1.4 var(--font-body);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .history-item {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .history-time {
+    font: 400 11.5px/1 var(--font-code);
+    color: var(--muted-soft);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .history-balls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .history-balls .ball {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .history-balls .plus {
+    color: var(--muted-soft);
+    font-size: 14px;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted-soft);
+    font: 400 12px/1.6 var(--font-body);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ball { animation: none !important; opacity: 1; transform: none; }
+    .draw-btn { transition: none; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Lotto 6 / 45 · Auto Draw</div>
+    <h1>로또 추첨기</h1>
+    <p class="sub">1부터 45까지, 중복 없는 6개의 번호와 보너스 번호를 뽑습니다</p>
+  </header>
+
+  <div class="stage">
+    <div class="round-row">회차 <strong id="round">#01</strong></div>
+    <div class="tray" id="tray"></div>
+    <button class="draw-btn" id="drawBtn">추첨 시작</button>
+    <div class="legend">
+      <span><i class="r1"></i>1–10</span>
+      <span><i class="r2"></i>11–20</span>
+      <span><i class="r3"></i>21–30</span>
+      <span><i class="r4"></i>31–40</span>
+      <span><i class="r5"></i>41–45</span>
+    </div>
+  </div>
+
+  <section class="slip">
+    <div class="slip-head">
+      <h2>여러 게임 자동 생성</h2>
+      <div class="count-control">
+        <button id="minus" aria-label="게임 수 줄이기">−</button>
+        <span>게임 수 <strong id="gameCount">3</strong></span>
+        <button id="plus" aria-label="게임 수 늘리기">+</button>
+      </div>
+    </div>
+    <div class="games" id="games">
+      <p class="empty-note">아래에서 게임 수를 정하고 추첨을 시작하면 여기에 번호가 채워집니다</p>
+    </div>
+  </section>
+
+  <section class="history">
+    <h2>이번 세션 기록</h2>
+    <div class="history-list" id="history">
+      <p class="empty-note">아직 추첨 기록이 없습니다</p>
+    </div>
+  </section>
+
+  <footer>
+    실제 로또 추첨과 무관한 번호 생성 도구입니다 · 당첨을 보장하지 않습니다
+  </footer>
+</div>
+
+<script>
+  const tray = document.getElementById("tray");
+  const drawBtn = document.getElementById("drawBtn");
+  const roundEl = document.getElementById("round");
+  const historyEl = document.getElementById("history");
+  const gamesEl = document.getElementById("games");
+  const gameCountEl = document.getElementById("gameCount");
+  const minusBtn = document.getElementById("minus");
+  const plusBtn = document.getElementById("plus");
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let round = 1;
+  let gameCount = 3;
+  let history = [];
+
+  function rangeClass(n) {
+    if (n <= 10) return "range-1";
+    if (n <= 20) return "range-2";
+    if (n <= 30) return "range-3";
+    if (n <= 40) return "range-4";
+    return "range-5";
+  }
+
+  function pickNumbers(count, exclude) {
+    const pool = [];
+    for (let i = 1; i <= 45; i++) {
+      if (!exclude || !exclude.includes(i)) pool.push(i);
+    }
+    const picked = [];
+    for (let i = 0; i < count; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      picked.push(pool.splice(idx, 1)[0]);
+    }
+    return picked.sort((a, b) => a - b);
+  }
+
+  function ballEl(n, { bonus = false, delay = 0 } = {}) {
+    const el = document.createElement("div");
+    el.className = "ball " + rangeClass(n) + (bonus ? " bonus" : "");
+    el.textContent = n;
+    if (!reduceMotion) el.style.animationDelay = delay + "ms";
+    return el;
+  }
+
+  function renderPlaceholders() {
+    tray.innerHTML = "";
+    for (let i = 0; i < 6; i++) {
+      const el = document.createElement("div");
+      el.className = "ball placeholder";
+      tray.appendChild(el);
+    }
+    const plus = document.createElement("div");
+    plus.className = "plus";
+    plus.textContent = "+";
+    tray.appendChild(plus);
+    const bonus = document.createElement("div");
+    bonus.className = "ball placeholder";
+    tray.appendChild(bonus);
+  }
+
+  function runDraw() {
+    drawBtn.disabled = true;
+    const main = pickNumbers(6);
+    const bonus = pickNumbers(1, main)[0];
+
+    tray.innerHTML = "";
+    main.forEach((n, i) => {
+      tray.appendChild(ballEl(n, { delay: i * 90 }));
+    });
+    const plus = document.createElement("div");
+    plus.className = "plus";
+    plus.textContent = "+";
+    tray.appendChild(plus);
+    tray.appendChild(ballEl(bonus, { bonus: true, delay: 6 * 90 }));
+
+    roundEl.textContent = "#" + String(round).padStart(2, "0");
+
+    const finishDelay = reduceMotion ? 0 : 6 * 90 + 500;
+    setTimeout(() => {
+      addHistory(main, bonus, round);
+      round += 1;
+      drawBtn.disabled = false;
+    }, finishDelay);
+
+    runGamesSlip();
+  }
+
+  function addHistory(main, bonus, roundNum) {
+    history.unshift({ main, bonus, roundNum, time: new Date() });
+    history = history.slice(0, 8);
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyEl.innerHTML = '<p class="empty-note">아직 추첨 기록이 없습니다</p>';
+      return;
+    }
+    historyEl.innerHTML = "";
+    history.forEach((h) => {
+      const item = document.createElement("div");
+      item.className = "history-item";
+
+      const time = document.createElement("div");
+      time.className = "history-time";
+      const hh = String(h.time.getHours()).padStart(2, "0");
+      const mm = String(h.time.getMinutes()).padStart(2, "0");
+      const ss = String(h.time.getSeconds()).padStart(2, "0");
+      time.textContent = "#" + String(h.roundNum).padStart(2, "0") + " · " + hh + ":" + mm + ":" + ss;
+
+      const balls = document.createElement("div");
+      balls.className = "history-balls";
+      h.main.forEach((n) => balls.appendChild(ballEl(n)));
+      const plus = document.createElement("span");
+      plus.className = "plus";
+      plus.textContent = "+";
+      balls.appendChild(plus);
+      balls.appendChild(ballEl(h.bonus, { bonus: true }));
+
+      item.appendChild(time);
+      item.appendChild(balls);
+      historyEl.appendChild(item);
+    });
+  }
+
+  function runGamesSlip() {
+    gamesEl.innerHTML = "";
+    const labels = ["A", "B", "C", "D", "E"];
+    for (let g = 0; g < gameCount; g++) {
+      const nums = pickNumbers(6);
+      const row = document.createElement("div");
+      row.className = "game-row";
+
+      const label = document.createElement("div");
+      label.className = "game-label";
+      label.textContent = labels[g];
+
+      const ballsWrap = document.createElement("div");
+      ballsWrap.className = "game-balls";
+      nums.forEach((n) => ballsWrap.appendChild(ballEl(n)));
+
+      row.appendChild(label);
+      row.appendChild(ballsWrap);
+      gamesEl.appendChild(row);
+    }
+  }
+
+  minusBtn.addEventListener("click", () => {
+    if (gameCount <= 1) return;
+    gameCount -= 1;
+    gameCountEl.textContent = gameCount;
+  });
+  plusBtn.addEventListener("click", () => {
+    if (gameCount >= 5) return;
+    gameCount += 1;
+    gameCountEl.textContent = gameCount;
+  });
+
+  drawBtn.addEventListener("click", runDraw);
+
+  renderPlaceholders();
+</script>
