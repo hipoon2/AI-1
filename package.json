@@ -1,0 +1,8 @@
+{
+  "name": "ai-1-lotto",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18"
+  }
+}

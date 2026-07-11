@@ -298,6 +298,129 @@
   .legend i.r4 { background: var(--ball-4); }
   .legend i.r5 { background: var(--ball-5); }
 
+  /* ---------- Saju form — cream feature card ---------- */
+  section.saju {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 32px 28px;
+  }
+
+  .saju p.sub {
+    margin: 0 0 20px;
+  }
+
+  .saju-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-end;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font: 500 12px/1.3 var(--font-body);
+    color: var(--muted);
+    flex: 1 1 140px;
+  }
+
+  .field input,
+  .field select {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.4 var(--font-body);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 9px 12px;
+    height: 40px;
+  }
+
+  .field input:focus,
+  .field select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(204, 120, 92, 0.15);
+  }
+
+  .field input:disabled {
+    opacity: 0.5;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 400 13px/1.3 var(--font-body);
+    color: var(--body);
+    padding-bottom: 9px;
+    flex: 0 0 auto;
+  }
+
+  .checkbox-field input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+  }
+
+  .saju-status {
+    min-height: 14px;
+    margin: 4px 0 0;
+    font: 400 12px/1.4 var(--font-code);
+    color: var(--muted);
+  }
+
+  .saju-result {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .saju-result h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: -0.1px;
+  }
+
+  .saju-analysis {
+    margin: 0;
+    padding: 16px 18px;
+    background: var(--bg);
+    border-radius: 10px;
+    border: 1px solid var(--hairline);
+    font: 400 14px/1.7 var(--font-body);
+    color: var(--body-strong);
+    white-space: pre-wrap;
+  }
+
+  .saju-tray {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .saju-tray .ball {
+    width: 44px;
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .saju-note {
+    margin: 0;
+    font: 400 11.5px/1.5 var(--font-body);
+    color: var(--muted-soft);
+  }
+
   /* ---------- Multi-game slip — cream feature card ---------- */
   section.slip {
     background: var(--surface);
@@ -482,6 +605,44 @@
       <span><i class="r5"></i>41–45</span>
     </div>
   </div>
+
+  <section class="saju">
+    <div class="slip-head">
+      <h2>사주로 번호 추천받기</h2>
+    </div>
+    <p class="sub">생년월일과 태어난 시간을 입력하면 AI가 사주를 짧게 해설하고, 그 기운에 맞춰 번호를 추천합니다</p>
+    <form class="saju-form" id="sajuForm">
+      <div class="field-row">
+        <label class="field">
+          양력 / 음력
+          <select id="calendarType">
+            <option value="solar">양력</option>
+            <option value="lunar">음력</option>
+          </select>
+        </label>
+        <label class="field">
+          생년월일
+          <input type="date" id="birthDate" required />
+        </label>
+        <label class="field">
+          태어난 시간
+          <input type="time" id="birthTime" />
+        </label>
+        <label class="checkbox-field">
+          <input type="checkbox" id="timeUnknown" />
+          시간 모름
+        </label>
+      </div>
+      <button type="submit" class="draw-btn" id="sajuBtn" style="align-self: flex-start;">사주 분석하고 번호 추천받기</button>
+    </form>
+    <p class="saju-status" id="sajuStatus"></p>
+    <div class="saju-result" id="sajuResult" hidden>
+      <h3>사주 해설</h3>
+      <p class="saju-analysis" id="sajuAnalysis"></p>
+      <div class="saju-tray" id="sajuTray"></div>
+      <p class="saju-note">AI가 생성한 오락용 사주 해설이며 실제 명리학적 정확성이나 당첨을 보장하지 않습니다</p>
+    </div>
+  </section>
 
   <section class="slip">
     <div class="slip-head">
@@ -721,6 +882,66 @@
       gamesEl.appendChild(row);
     }
   }
+
+  // ---------- Saju-based number recommendation ----------
+  const sajuForm = document.getElementById("sajuForm");
+  const sajuBtn = document.getElementById("sajuBtn");
+  const sajuStatus = document.getElementById("sajuStatus");
+  const sajuResult = document.getElementById("sajuResult");
+  const sajuAnalysisEl = document.getElementById("sajuAnalysis");
+  const sajuTray = document.getElementById("sajuTray");
+  const calendarType = document.getElementById("calendarType");
+  const birthDateInput = document.getElementById("birthDate");
+  const birthTimeInput = document.getElementById("birthTime");
+  const timeUnknown = document.getElementById("timeUnknown");
+
+  timeUnknown.addEventListener("change", () => {
+    birthTimeInput.disabled = timeUnknown.checked;
+    if (timeUnknown.checked) birthTimeInput.value = "";
+  });
+
+  sajuForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!birthDateInput.value) return;
+
+    sajuBtn.disabled = true;
+    sajuResult.hidden = true;
+    sajuStatus.textContent = "사주를 분석하고 있습니다...";
+
+    try {
+      const res = await fetch("/api/saju", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          birthDate: birthDateInput.value,
+          birthTime: timeUnknown.checked ? null : birthTimeInput.value || null,
+          calendar: calendarType.value,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "요청에 실패했습니다");
+
+      sajuAnalysisEl.textContent = data.analysis;
+
+      sajuTray.innerHTML = "";
+      data.numbers.forEach((n, i) => {
+        sajuTray.appendChild(ballEl(n, { delay: i * 90 }));
+      });
+      const plus = document.createElement("div");
+      plus.className = "plus";
+      plus.textContent = "+";
+      sajuTray.appendChild(plus);
+      sajuTray.appendChild(ballEl(data.bonus, { bonus: true, delay: 6 * 90 }));
+
+      sajuResult.hidden = false;
+      sajuStatus.textContent = "";
+    } catch (err) {
+      sajuStatus.textContent = "분석에 실패했습니다: " + err.message;
+    } finally {
+      sajuBtn.disabled = false;
+    }
+  });
 
   minusBtn.addEventListener("click", () => {
     if (gameCount <= 1) return;
