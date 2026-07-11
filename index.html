@@ -208,6 +208,46 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  /* Tray balls are revealed by JS (spin → land), not the CSS drop-in */
+  .tray .ball {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    background: var(--stage-elevated);
+    box-shadow: inset 0 0 0 1px var(--hairline-soft);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+  }
+  .tray .ball.spinning {
+    color: var(--on-dark-soft);
+    animation: pulse 0.42s ease-in-out infinite;
+  }
+  .tray .ball.landed {
+    animation: land 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  .tray .ball.resorting {
+    opacity: 0.15;
+    transform: scale(0.82);
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  @keyframes land {
+    0% { transform: scale(0.72); }
+    60% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  .status {
+    min-height: 14px;
+    margin: 0;
+    font: 400 12px/1.4 var(--font-code);
+    letter-spacing: 0.02em;
+    color: var(--on-dark-soft);
+  }
+
   .draw-btn {
     appearance: none;
     border: none;
@@ -301,6 +341,7 @@
     font: 500 15px/1 var(--font-body);
   }
   .count-control button:hover { border-color: var(--primary); color: var(--primary); }
+  .count-control button:disabled { opacity: 0.45; cursor: default; border-color: var(--hairline); color: var(--muted); }
 
   .count-control strong {
     min-width: 14px;
@@ -432,6 +473,7 @@
     <div class="round-row">회차 <strong id="round">#01</strong></div>
     <div class="tray" id="tray"></div>
     <button class="draw-btn" id="drawBtn">추첨 시작</button>
+    <p class="status" id="status"></p>
     <div class="legend">
       <span><i class="r1"></i>1–10</span>
       <span><i class="r2"></i>11–20</span>
@@ -471,6 +513,7 @@
   const tray = document.getElementById("tray");
   const drawBtn = document.getElementById("drawBtn");
   const roundEl = document.getElementById("round");
+  const statusEl = document.getElementById("status");
   const historyEl = document.getElementById("history");
   const gamesEl = document.getElementById("games");
   const gameCountEl = document.getElementById("gameCount");
@@ -504,12 +547,42 @@
     return picked.sort((a, b) => a - b);
   }
 
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   function ballEl(n, { bonus = false, delay = 0 } = {}) {
     const el = document.createElement("div");
     el.className = "ball " + rangeClass(n) + (bonus ? " bonus" : "");
     el.textContent = n;
     if (!reduceMotion) el.style.animationDelay = delay + "ms";
     return el;
+  }
+
+  // Spins a tray ball through random digits like a drum ball settling,
+  // then lands it on the real drawn number.
+  async function drawBallInto(el, n, { bonus = false } = {}) {
+    el.classList.remove("placeholder");
+    if (!reduceMotion) {
+      el.classList.add("spinning");
+      for (let i = 0; i < 9; i++) {
+        el.textContent = Math.ceil(Math.random() * 45);
+        await wait(55);
+      }
+      el.classList.remove("spinning");
+    }
+    el.classList.add(rangeClass(n), "landed");
+    if (bonus) el.classList.add("bonus");
+    el.textContent = n;
   }
 
   function renderPlaceholders() {
@@ -528,29 +601,63 @@
     tray.appendChild(bonus);
   }
 
-  function runDraw() {
+  // Mirrors an actual 6/45 broadcast: 6 balls are drawn one at a time in
+  // random order, a 7th ball is drawn separately as the bonus, and only
+  // then does the result settle into ascending order for the final graphic.
+  async function runDraw() {
     drawBtn.disabled = true;
+    minusBtn.disabled = true;
+    plusBtn.disabled = true;
+
+    const currentRound = round;
+    roundEl.textContent = "#" + String(currentRound).padStart(2, "0");
+
+    renderPlaceholders();
+    const slots = Array.from(tray.querySelectorAll(".ball"));
+    const mainSlots = slots.slice(0, 6);
+    const bonusSlot = slots[6];
+
+    statusEl.textContent = "추첨 준비 중";
+    await wait(reduceMotion ? 0 : 450);
+
     const main = pickNumbers(6);
+    const drawOrder = shuffle(main);
+
+    for (let i = 0; i < 6; i++) {
+      statusEl.textContent = (i + 1) + "번째 볼을 추첨하고 있습니다";
+      await drawBallInto(mainSlots[i], drawOrder[i]);
+      await wait(reduceMotion ? 0 : 200);
+    }
+
+    statusEl.textContent = "보너스 볼을 추첨하고 있습니다";
+    await wait(reduceMotion ? 0 : 350);
     const bonus = pickNumbers(1, main)[0];
+    await drawBallInto(bonusSlot, bonus, { bonus: true });
 
-    tray.innerHTML = "";
-    main.forEach((n, i) => {
-      tray.appendChild(ballEl(n, { delay: i * 90 }));
+    statusEl.textContent = "당첨 번호를 정렬하고 있습니다";
+    await wait(reduceMotion ? 0 : 450);
+
+    if (!reduceMotion) {
+      mainSlots.forEach((s) => s.classList.add("resorting"));
+      await wait(220);
+    }
+    const sortedMain = main.slice().sort((a, b) => a - b);
+    mainSlots.forEach((s, i) => {
+      s.className = "ball landed " + rangeClass(sortedMain[i]);
+      s.textContent = sortedMain[i];
     });
-    const plus = document.createElement("div");
-    plus.className = "plus";
-    plus.textContent = "+";
-    tray.appendChild(plus);
-    tray.appendChild(ballEl(bonus, { bonus: true, delay: 6 * 90 }));
+    if (!reduceMotion) {
+      await wait(30);
+      mainSlots.forEach((s) => s.classList.remove("resorting"));
+      await wait(240);
+    }
 
-    roundEl.textContent = "#" + String(round).padStart(2, "0");
-
-    const finishDelay = reduceMotion ? 0 : 6 * 90 + 500;
-    setTimeout(() => {
-      addHistory(main, bonus, round);
-      round += 1;
-      drawBtn.disabled = false;
-    }, finishDelay);
+    statusEl.textContent = "추첨 완료";
+    addHistory(sortedMain, bonus, currentRound);
+    round += 1;
+    drawBtn.disabled = false;
+    minusBtn.disabled = false;
+    plusBtn.disabled = false;
 
     runGamesSlip();
   }
